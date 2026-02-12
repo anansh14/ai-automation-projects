@@ -1,0 +1,529 @@
+{
+  "name": "Jobs roles automation for public",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// 1. HARDCODED PREFERENCES (Edit these here)\nconst query = $('User Input').first().json.role;\nconst loc = $('User Input').first().json.location;\nconst wantRemote = false; // Set to true if you ONLY want remote jobs\n\n// 2. Build URL Manually\n// We use encodeURIComponent to ensure spaces and symbols are safe\nconst baseUrl = 'https://www.linkedin.com/jobs/search?';\n\n// Create the list of parameters\nconst params = [\n  'keywords=' + encodeURIComponent(query),\n  'location=' + encodeURIComponent(loc),\n  'trk=public_jobs_jobs-search-bar_search-submit',\n  'f_TPR=r86400' // Last 24 hours only\n];\n\n// Check for Remote (f_WT=2)\nif (wantRemote === true) {\n  params.push('f_WT=2');\n}\n\n// Join them together with \"&\"\nconst targetUrl = baseUrl + params.join('&');\n\nreturn {\n  json: {\n    url: targetUrl\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -928,
+        384
+      ],
+      "id": "1b2b8b0b-98af-4974-b76f-bd72376ff90d",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "en-US,en;q=0.9"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.google.com/"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -704,
+        384
+      ],
+      "id": "ba3fcaa4-b235-4745-a53e-6aa72892d4c9",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": ".base-search-card__title",
+              "returnArray": true
+            },
+            {
+              "key": "company",
+              "cssSelector": ".base-search-card__subtitle",
+              "returnArray": true
+            },
+            {
+              "key": "location",
+              "cssSelector": ".job-search-card__location",
+              "returnArray": true
+            },
+            {
+              "key": "link",
+              "cssSelector": ".base-card__full-link",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        384
+      ],
+      "id": "5c77a003-9bc9-4532-b9b2-4519955dbdef",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst titles = data.title || [];\nconst companies = data.company || [];\nconst locations = data.location || [];\nconst links = data.link || [];\n\nconst results = [];\nconst seenCompanies = new Set();\n\nfor (let i = 0; i < titles.length; i++) {\n  \n  // 1. Clean Company Name\n  let cleanCompany = companies[i] || \"Unknown\";\n  if (cleanCompany.includes('\\n')) cleanCompany = cleanCompany.split('\\n')[0].trim();\n  \n  const link = links[i] || \"\";\n\n  // 2. Deduplication (Unique Companies only)\n  if (!seenCompanies.has(cleanCompany)) {\n    \n    // 3. 🆔 EXTRACT JOB ID (Crucial New Step)\n    // We look for the number inside the URL (e.g. view/3748291...)\n    let jobId = \"0\";\n    const idMatch = link.match(/view\\/(\\d+)/) || link.match(/-(\\d+)\\?/);\n    \n    if (idMatch) {\n      jobId = idMatch[1];\n    }\n\n    // Only proceed if we found a valid ID\n    if (jobId !== \"0\") {\n        results.push({\n            json: {\n              title: titles[i] ? titles[i].trim() : \"Unknown\",\n              company: cleanCompany,\n              location: locations[i] ? locations[i].trim() : \"Unknown\",\n              link: link,\n              jobId: jobId // <--- Pass this to the next node\n            }\n        });\n        seenCompanies.add(cleanCompany);\n    }\n  }\n}\n\n// ⚠️ LIMIT TO 8 JOBS\n// Since we are looping (Deep Scraping), we limit to 8 to avoid bans.\nreturn results.slice(0, 8);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        384
+      ],
+      "id": "8ec0e4cf-6dd9-4ae5-ad29-b8e38d3d55b7",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=**Role:** Elite Recruiter specializing in {{ $('User Input').first().json.role }} roles.\n\n**Input Data:**\n{{ JSON.stringify($json.job_list) }}\n\n**Task:**\n1. Analyze the 'full_description' of every job.\n2. Select the **Top 5** Best Opportunities strictly matching the role of: **{{ $('User Input').first().json.role }}**.\n\n**Strict Filtering Rules:**\n1. **PAYMENT CHECK:** Prioritize jobs that mention a \"Stipend\", \"Salary\", or \"Paid\".\n2. **REJECT:** Immediately reject jobs that explicitly say \"Unpaid\" (unless the opportunity provides exceptional prestige).\n3. **SKILL MATCH:** Rank jobs higher if they mention tools, software, or skills specifically relevant to a **{{ $('User Input').first().json.role }}**.\n4. **AVOID:** Generic roles (like \"Data Entry\" or \"Sales\") if they do not match the target role found in the input.\n\n**Output:**\nReturn RAW JSON Array (Company, Title, Pitch, Link, Location, description).\n**Pitch Rule:** Your pitch MUST mention the Pay/Stipend (if found) and the specific skills found that match the user's request.\n\n**Example:**\n[\n  {\n    \"company\": \"Company A\",\n    \"title\": \"{{ $('User Input').first().json.role }}\",\n    \"location\": \"Remote\",\n    \"pitch\": \"Paid position focusing on [Relevant Skill 1] and [Relevant Skill 2].\",\n    \"link\": \"https://...\",\n    \"description\": \"full job description text...\"\n  }\n]",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        416,
+        -64
+      ],
+      "id": "80dcac74-0026-4fde-adf9-1b9915cd1969",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sendTo": "your_email@example.com",
+        "subject": "Wahooo, Job Postings",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}\n\nRegards, \nAnansh Pahwa",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        -64
+      ],
+      "id": "02ec3b96-66d6-43da-a9f4-ee17ee0c5d01",
+      "name": "Send a message",
+      "webhookId": "REDACTED"
+    },
+    {
+      "parameters": {
+        "model": "google/gemma-3-12b-it:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        496,
+        160
+      ],
+      "id": "43e35559-e62f-4a63-8893-f081baff4be6",
+      "name": "OpenRouter Chat Model"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get AI Agent output (ranked jobs as a string)\nconst aiText = $input.first().json.output || $input.first().json.text || \"\";\n\n// --- DEBUG: keep a copy of raw AI output in case something breaks\n// You will see this in the node's JSON output under \"debug_raw_ai\"\nlet debug_raw_ai = aiText;\n\ntry {\n  // 2. Remove ```json ``` fences if present\n  let cleaned = aiText.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n\n  // 3. If there is surrounding text, try to isolate the JSON array [ ... ]\n  const match = cleaned.match(/\\[[\\s\\S]*\\]/);\n  if (match) cleaned = match[0];\n\n  // 4. Parse the JSON array from the AI\n  let rankedJobs = JSON.parse(cleaned);\n  if (!Array.isArray(rankedJobs)) rankedJobs = [rankedJobs];\n\n  // 5. Get the original enriched jobs (with full_description/description)\n  //    IMPORTANT: name here must match your aggregator node name on the canvas\n  const originalJobs = $node[\"Code in JavaScript4\"].json.job_list || [];\n\n  // Helper: find original job by link\n  function findOriginal(link) {\n    return originalJobs.find(j => j.link === link) || {};\n  }\n\n  // 6. Build email body + jobs_raw including description\n  let message = \"🚀 **Top Jobs Found Today:**\\n\\n\";\n  const jobs_raw = [];\n\n  rankedJobs.slice(0, 5).forEach((j, index) => {\n    const orig = findOriginal(j.link);\n\n    const company = j.company   || orig.company   || \"Unknown\";\n    const title   = j.title     || orig.title     || \"Job Title\";\n    const loc     = j.location  || orig.location  || \"Location not specified\";\n    const pitch   = j.pitch     || \"Check details.\";\n    const link    = j.link      || orig.link      || \"#\";\n\n    // We prefer the original scraped description\n    const description = orig.description || orig.full_description || j.description || \"\";\n\n    message += `${index + 1}. **${company}** - ${title}\\n`;\n    message += `📍 ${loc}\\n`;\n    message += `💡 ${pitch}\\n`;\n    message += `🔗 ${link}\\n\\n`;\n\n    jobs_raw.push({\n      company,\n      title,\n      location: loc,\n      pitch,\n      link,\n      description\n    });\n  });\n\n  // 7. Return single item for the rest of the flow\n  return [\n    {\n      json: {\n        email_body: message,   // used by Gmail\n        jobs_raw,              // used by Split Out → Writer AI → Notion\n        debug_raw_ai           // helpful if something fails later\n      }\n    }\n  ];\n\n} catch (error) {\n  // If anything fails, surface a helpful error and the raw AI text\n  return [\n    {\n      json: {\n        email_body: \"⚠️ Error parsing AI results.\",\n        error: error.message,\n        debug_raw_ai\n      }\n    }\n  ];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -160
+      ],
+      "id": "f9285a3a-33ed-494a-a3eb-5ea49ef30bd9",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_NOTION_DATABASE_ID",
+          "mode": "list",
+          "cachedResultName": "SET_IN_N8N",
+          "cachedResultUrl": "REDACTED"
+        },
+        "title": "=",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Company|title",
+              "title": "={{ $json.company }}"
+            },
+            {
+              "key": "Location|rich_text",
+              "textContent": "={{ $json.location }}"
+            },
+            {
+              "key": "Pitch|rich_text",
+              "textContent": "={{ $json.pitch }}"
+            },
+            {
+              "key": "Role|rich_text",
+              "textContent": "={{ $json.title }}"
+            },
+            {
+              "key": "Link|url",
+              "urlValue": "={{ $json.link }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        128
+      ],
+      "id": "00819562-6c7e-41c9-ba6a-94d24578c0af",
+      "name": "Create a database page"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -32,
+        384
+      ],
+      "id": "13d0bedb-291e-4e3a-8986-3d8862296299",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{{ $json.jobId }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        192,
+        384
+      ],
+      "id": "f93a8b9d-1100-4883-b6a2-9321b3dbe04d",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "description_text",
+              "cssSelector": ".description__text"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        384
+      ],
+      "id": "a1ce7e19-e5f7-4e79-95b3-46fed4235304",
+      "name": "HTML1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the original info (Title, Link)\n// We reference the NAME of your loop node exactly:\nconst originalJob = $('Loop Over Items').first().json;\n\n// 2. Get the new description we just found\nconst desc = $input.first().json.description_text || \"No description available.\";\n\n// 3. SLEEP (Anti-Ban) - Wait 1.5 seconds\nconst end = Date.now() + 1500;\nwhile (Date.now() < end) continue;\n\nreturn {\n  json: {\n    ...originalJob, \n    full_description: desc.substring(0, 3000) \n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        448
+      ],
+      "id": "e68bfa60-1522-4fe5-b800-857079b287d1",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// create an empty array to store the clean job list\nconst formattedJobs = [];\n\n// Loop through all items coming from the previous node\nfor (const item of items) {\n  formattedJobs.push({\n    title: item.json.title,\n    company: item.json.company,\n    location: item.json.location,\n    link: item.json.link,\n    // You asked to include the description as well:\n    description: item.json.full_description \n  });\n}\n\n// Return the specific format you requested:\n// A single item containing a \"job_list\" array\nreturn [\n  {\n    json: {\n      job_list: formattedJobs\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        -64
+      ],
+      "id": "5fb6b5d2-8800-46a5-8d16-bb9840ef5b29",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the raw output from the AI Agent\nconst rawOutput = items[0].json.output;\nlet jobItems = [];\n\ntry {\n    // 1. CLEANUP: Extract the JSON array\n    // We look for the first '[' and last ']' to ignore any \"Here is your JSON\" text\n    const start = rawOutput.indexOf('['); \n    const end = rawOutput.lastIndexOf(']');\n\n    if (start !== -1 && end !== -1) {\n        const jsonString = rawOutput.substring(start, end + 1);\n        const jobs = JSON.parse(jsonString);\n\n        // 2. PREPARE ITEMS FOR NOTION\n        jobItems = jobs.map(job => {\n            return {\n                json: {\n                    company: job.company,\n                    title: job.title,\n                    location: job.location,\n                    pitch: job.pitch,\n                    link: job.link\n                }\n            };\n        });\n    }\n} catch (error) {\n    console.log(\"Error parsing:\", error);\n    return [{ json: { error: \"Failed to parse job data\" } }];\n}\n\n// Return separate items so Notion creates 1 row per job\nreturn jobItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        128
+      ],
+      "id": "3357ae81-746e-40d2-a0fc-415217a8ceab",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Career Orchestrator | Live Demo</title>\n    <style>\n        /* --- CORE STYLES --- */\n        :root {\n            --bg: #050505;\n            --surface: #0f0f0f;\n            --primary: #8b5cf6;\n            --accent: #06b6d4;\n            --text: #e2e8f0;\n            --font-mono: 'JetBrains Mono', monospace;\n            --font-main: 'Inter', sans-serif;\n        }\n        * { margin: 0; padding: 0; box-sizing: border-box; }\n        body { background: var(--bg); color: var(--text); font-family: var(--font-main); overflow-x: hidden; }\n\n        /* --- LAYOUT --- */\n        .container { max-width: 1000px; margin: 0 auto; padding: 0 2rem; }\n        .hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; }\n        \n        /* --- TYPOGRAPHY --- */\n        h1 { font-size: 3.5rem; letter-spacing: -2px; line-height: 1.1; margin-bottom: 1rem; }\n        .gradient-text { background: linear-gradient(135deg, #fff 0%, var(--primary) 50%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }\n        p { color: #94a3b8; font-size: 1.1rem; max-width: 600px; margin-bottom: 2rem; }\n\n        /* --- THE INPUT CONSOLE --- */\n        .input-box {\n            background: rgba(255,255,255,0.03);\n            border: 1px solid rgba(255,255,255,0.1);\n            padding: 2rem;\n            border-radius: 16px;\n            width: 100%;\n            max-width: 500px;\n            backdrop-filter: blur(10px);\n            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);\n            transition: 0.3s;\n        }\n        .input-group { text-align: left; margin-bottom: 1rem; }\n        label { display: block; font-size: 0.8rem; color: var(--accent); margin-bottom: 5px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 1px; }\n        input {\n            width: 100%;\n            background: rgba(0,0,0,0.3);\n            border: 1px solid #333;\n            padding: 12px;\n            color: white;\n            border-radius: 6px;\n            font-family: var(--font-mono);\n            font-size: 1rem;\n            outline: none;\n            transition: 0.2s;\n        }\n        input:focus { border-color: var(--primary); box-shadow: 0 0 15px rgba(139, 92, 246, 0.2); }\n        \n        button {\n            width: 100%;\n            padding: 14px;\n            background: var(--primary);\n            color: white;\n            border: none;\n            border-radius: 6px;\n            font-weight: 700;\n            font-size: 1rem;\n            cursor: pointer;\n            transition: 0.2s;\n            margin-top: 10px;\n        }\n        button:hover { background: #7c3aed; transform: translateY(-2px); }\n        button:active { transform: translateY(0); }\n\n        /* --- THE TERMINAL --- */\n        .terminal-window {\n            margin-top: 3rem;\n            background: #0d0d0d;\n            border: 1px solid #333;\n            border-radius: 8px;\n            padding: 1.5rem;\n            font-family: var(--font-mono);\n            text-align: left;\n            width: 100%;\n            max-width: 800px;\n            min-height: 250px;\n            display: none; /* Hidden initially */\n            box-shadow: 0 0 50px rgba(139, 92, 246, 0.1);\n        }\n        .code-line { margin-bottom: 5px; opacity: 0; animation: fadeIn 0.2s forwards; }\n        .success { color: #10b981; } .cmd { color: var(--accent); } .warn { color: #f59e0b; }\n\n        @keyframes fadeIn { to { opacity: 1; } }\n        .glow { position: absolute; width: 400px; height: 400px; background: var(--primary); filter: blur(200px); opacity: 0.15; z-index: -1; }\n    </style>\n</head>\n<body>\n\n    <div class=\"glow\" style=\"top: -100px; left: 50%; transform: translateX(-50%);\"></div>\n\n    <section class=\"hero\">\n        <div class=\"container\">\n            <h1>Configure Your <br><span class=\"gradient-text\">Career Agent</span></h1>\n            <p>Enter your target role below. The agent will autonomously scrape, filter, and apply logic to find your perfect match.</p>\n\n            <!-- INPUT FORM -->\n            <div class=\"input-box\" id=\"inputSection\">\n                <form id=\"agentForm\">\n                    <div class=\"input-group\">\n                        <label>Target Role</label>\n                        <input type=\"text\" id=\"role\" placeholder=\"e.g. Data Scientist\" required>\n                    </div>\n                    <div class=\"input-group\">\n                        <label>Location</label>\n                        <input type=\"text\" id=\"location\" placeholder=\"e.g. Remote / New York\" required>\n                    </div>\n                    <button type=\"submit\">🚀 Deploy Agent</button>\n                </form>\n            </div>\n\n            <!-- TERMINAL (Appears after click) -->\n            <div class=\"terminal-window\" id=\"terminal\">\n                <div style=\"display:flex; gap:8px; margin-bottom:15px;\">\n                    <div style=\"width:10px; height:10px; background:#ef4444; border-radius:50%\"></div>\n                    <div style=\"width:10px; height:10px; background:#f59e0b; border-radius:50%\"></div>\n                    <div style=\"width:10px; height:10px; background:#10b981; border-radius:50%\"></div>\n                </div>\n                <div id=\"logs\"></div>\n            </div>\n\n        </div>\n    </section>\n\n    <script>\n        document.getElementById('agentForm').addEventListener('submit', function(e) {\n            e.preventDefault();\n            \n            // 1. Get User Input\n            const role = document.getElementById('role').value;\n            const location = document.getElementById('location').value;\n\n            // 2. UI Transition\n            document.getElementById('inputSection').style.display = 'none';\n            document.getElementById('terminal').style.display = 'block';\n\n            // 3. Start the \"Fake\" Terminal Logic\n            runTerminal(role, location);\n\n            // 4. (Optional) Send to n8n Webhook\n            // fetch('YOUR_N8N_WEBHOOK_URL', {\n            //     method: 'POST',\n            //     body: JSON.stringify({ role: role, location: location })\n            // });\n        });\n\n        function runTerminal(role, location) {\n            const container = document.getElementById('logs');\n            const steps = [\n                { text: `> Initializing environment for target: \"${role}\"...`, color: 'white', delay: 500 },\n                { text: `> Setting search radius: ${location}`, color: 'white', delay: 1200 },\n                { text: `> connecting to web_scraper_v2...`, color: 'cmd', delay: 2000 },\n                { text: `> [200 OK] LinkedIn Guest Access Granted.`, color: 'success', delay: 3000 },\n                { text: `> Scraping 14 sources... Found 32 raw matches.`, color: 'white', delay: 4500 },\n                { text: `> Sending data to Gemma-9B for semantic filtering...`, color: 'warn', delay: 6000 },\n                { text: `> ... Analyzing salary transparency`, color: 'white', delay: 7000 },\n                { text: `> ... Analyzing tech stack match`, color: 'white', delay: 7500 },\n                { text: `> [FILTERED] 27 junk roles removed. 5 high-quality matches found.`, color: 'success', delay: 9000 },\n                { text: `> Generating cover letters...`, color: 'cmd', delay: 10000 },\n                { text: `> Syncing with Notion Database...`, color: 'white', delay: 11500 },\n                { text: `> [COMPLETE] Report sent to email.`, color: 'success', delay: 12500 },\n            ];\n\n            let cumulativeTime = 0;\n\n            steps.forEach(step => {\n                cumulativeTime += step.delay; // actually this logic makes them run sequentially if we just add delay\n                // Better logic for simple sequential typing:\n                setTimeout(() => {\n                    const div = document.createElement('div');\n                    div.className = `code-line ${step.color}`;\n                    div.innerText = step.text;\n                    container.appendChild(div);\n                    container.scrollTop = container.scrollHeight;\n                }, step.delay);\n            });\n        }\n    </script>\n</body>\n</html>"
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -1360,
+        3872
+      ],
+      "id": "95b4b541-63c0-454e-ba19-a00c57279269",
+      "name": "HTML2"
+    },
+    {
+      "parameters": {
+        "formTitle": "Autonomous Career Agent",
+        "formDescription": "Enter your dream job details below. The AI will scrape, filter, and email you the best matches.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Target Role",
+              "fieldName": "role",
+              "placeholder": "e.g. Data Scientist",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Location",
+              "fieldName": "location",
+              "placeholder": "e.g. Remote, India, New York",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "d3e60d2a-94c4-4983-a47c-b68ad6a329af",
+      "name": "User Input",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -1136,
+        384
+      ],
+      "webhookId": "REDACTED"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "HTML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "Create a database page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML2": {
+      "main": [
+        []
+      ]
+    },
+    "User Input": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "65494cea-739e-404b-87ef-034f8b15ff6c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "REDACTED"
+  },
+  "id": "Se1SlugWsbrpaBDB",
+  "tags": []
+}
