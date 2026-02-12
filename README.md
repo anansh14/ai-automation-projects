@@ -26,20 +26,25 @@ If you use n8n yourself, you can import the workflows and adapt them to your own
 ├─ ai-email-triage/
 │  ├─ README.md
 │  └─ workflow.json
+|  ├─ screenshots
 ├─ ai-book-generator/
 │  ├─ README.md
 │  └─ workflow.json
+|  ├─ screenshots
 ├─ seo-audit-engine/
 │  ├─ README.md
 │  └─ workflow.json
+|  ├─ screenshots
 ├─ career-orchestrator/
 │  ├─ README-hardcodedwithNotion.md
 │  ├─ README-interactive.md
 │  ├─ workflow-hardcodedwithNotion.json   # scheduled, hardcoded role/location + cover letters + Notion
 │  └─ workflow-interactive.json           # form-driven role/location input
+|  ├─ screenshots         
 ├─ jarvis-telegram/
 │  ├─ README.md
 │  └─ workflow.json
+|  ├─ screenshots
 ├─ LICENSE
 └─ README.md  ← you are here
 
