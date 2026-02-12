@@ -1,0 +1,682 @@
+{
+  "name": "Jobs roles automation with cover letter",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// 1. HARDCODED PREFERENCES (Edit these here)\nconst query = \"Data Science Intern\";\nconst loc = \"India\";\nconst wantRemote = false; // Set to true if you ONLY want remote jobs\n\n// 2. Build URL Manually\n// We use encodeURIComponent to ensure spaces and symbols are safe\nconst baseUrl = 'https://www.linkedin.com/jobs/search?';\n\n// Create the list of parameters\nconst params = [\n  'keywords=' + encodeURIComponent(query),\n  'location=' + encodeURIComponent(loc),\n  'trk=public_jobs_jobs-search-bar_search-submit',\n  'f_TPR=r86400' // Last 24 hours only\n];\n\n// Check for Remote (f_WT=2)\nif (wantRemote === true) {\n  params.push('f_WT=2');\n}\n\n// Join them together with \"&\"\nconst targetUrl = baseUrl + params.join('&');\n\nreturn {\n  json: {\n    url: targetUrl\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -928,
+        384
+      ],
+      "id": "5038eb9f-1a2b-4b16-aae8-aeee97763aac",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "en-US,en;q=0.9"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.google.com/"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -704,
+        384
+      ],
+      "id": "9347a99d-92c4-478b-8d4b-f169c82f8de6",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": ".base-search-card__title",
+              "returnArray": true
+            },
+            {
+              "key": "company",
+              "cssSelector": ".base-search-card__subtitle",
+              "returnArray": true
+            },
+            {
+              "key": "location",
+              "cssSelector": ".job-search-card__location",
+              "returnArray": true
+            },
+            {
+              "key": "link",
+              "cssSelector": ".base-card__full-link",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        384
+      ],
+      "id": "03c406b4-ba09-46ab-a245-b4c19fb53038",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst titles = data.title || [];\nconst companies = data.company || [];\nconst locations = data.location || [];\nconst links = data.link || [];\n\nconst results = [];\nconst seenCompanies = new Set();\n\nfor (let i = 0; i < titles.length; i++) {\n  \n  // 1. Clean Company Name\n  let cleanCompany = companies[i] || \"Unknown\";\n  if (cleanCompany.includes('\\n')) cleanCompany = cleanCompany.split('\\n')[0].trim();\n  \n  const link = links[i] || \"\";\n\n  // 2. Deduplication (Unique Companies only)\n  if (!seenCompanies.has(cleanCompany)) {\n    \n    // 3. 🆔 EXTRACT JOB ID (Crucial New Step)\n    // We look for the number inside the URL (e.g. view/3748291...)\n    let jobId = \"0\";\n    const idMatch = link.match(/view\\/(\\d+)/) || link.match(/-(\\d+)\\?/);\n    \n    if (idMatch) {\n      jobId = idMatch[1];\n    }\n\n    // Only proceed if we found a valid ID\n    if (jobId !== \"0\") {\n        results.push({\n            json: {\n              title: titles[i] ? titles[i].trim() : \"Unknown\",\n              company: cleanCompany,\n              location: locations[i] ? locations[i].trim() : \"Unknown\",\n              link: link,\n              jobId: jobId // <--- Pass this to the next node\n            }\n        });\n        seenCompanies.add(cleanCompany);\n    }\n  }\n}\n\n// ⚠️ LIMIT TO 8 JOBS\n// Since we are looping (Deep Scraping), we limit to 8 to avoid bans.\nreturn results.slice(0, 8);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        384
+      ],
+      "id": "1243be17-5266-490d-b9a1-bc2d2ca90f7b",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Role: Elite Tech Recruiter.\n\nInput Data:\n{{ JSON.stringify($json.job_list) }}\n\nTask:\n\nAnalyze the 'full_description' of every job.\nSelect the Top 5 Best Opportunities.\nStrict Filtering Rules:\n\nPAYMENT CHECK: Prioritize jobs that mention a \"Stipend\", \"Salary\", or \"Paid\".\nREJECT: Immediately reject jobs that explicitly say \"Unpaid\" (unless the Tech Stack is world-class).\nTECH STACK: Rank jobs higher if they mention specific tools: Python, SQL, Pandas, Scikit-learn, AWS.\nAVOID: Generic \"Data Entry\" roles or roles with short, vague descriptions.\nOutput:\nReturn RAW JSON Array (Company, Title, Pitch, Link, Location).\nPitch Rule: Your pitch MUST mention the Pay/Stipend (if found) and the Tech Stack.\n\nExample:\n[\n{\n\"company\": \"Company A\",\n\"title\": \"Data Scientist\",\n\"location\": \"Remote\",\n\"pitch\": \"Paid internship (₹15k) focusing on Scikit-learn and predictive modeling.\",\n\"link\": \"https://...\",\n\"description\": \"roles, requirements, etc.\"\n}\n]",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        416,
+        -64
+      ],
+      "id": "9be2f550-8432-400d-86cd-4eab2b8551f5",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sendTo": "your_email@example.com",
+        "subject": "Wahooo, Job Postings",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}\n\nRegards, \nAnansh Pahwa",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        -64
+      ],
+      "id": "93873a7c-4348-4d77-9f27-e9cd4a2f29c3",
+      "name": "Send a message",
+      "webhookId": "REDACTED"
+    },
+    {
+      "parameters": {
+        "model": "google/gemma-3-12b-it:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        496,
+        160
+      ],
+      "id": "94b70098-ff54-4508-bf22-8b2e4802be60",
+      "name": "OpenRouter Chat Model"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get AI Agent output (ranked jobs as a string)\nconst aiText = $input.first().json.output || $input.first().json.text || \"\";\n\n// --- DEBUG: keep a copy of raw AI output in case something breaks\n// You will see this in the node's JSON output under \"debug_raw_ai\"\nlet debug_raw_ai = aiText;\n\ntry {\n  // 2. Remove ```json ``` fences if present\n  let cleaned = aiText.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n\n  // 3. If there is surrounding text, try to isolate the JSON array [ ... ]\n  const match = cleaned.match(/\\[[\\s\\S]*\\]/);\n  if (match) cleaned = match[0];\n\n  // 4. Parse the JSON array from the AI\n  let rankedJobs = JSON.parse(cleaned);\n  if (!Array.isArray(rankedJobs)) rankedJobs = [rankedJobs];\n\n  // 5. Get the original enriched jobs (with full_description/description)\n  //    IMPORTANT: name here must match your aggregator node name on the canvas\n  const originalJobs = $node[\"Code in JavaScript4\"].json.job_list || [];\n\n  // Helper: find original job by link\n  function findOriginal(link) {\n    return originalJobs.find(j => j.link === link) || {};\n  }\n\n  // 6. Build email body + jobs_raw including description\n  let message = \"🚀 **Top Jobs Found Today:**\\n\\n\";\n  const jobs_raw = [];\n\n  rankedJobs.slice(0, 5).forEach((j, index) => {\n    const orig = findOriginal(j.link);\n\n    const company = j.company   || orig.company   || \"Unknown\";\n    const title   = j.title     || orig.title     || \"Job Title\";\n    const loc     = j.location  || orig.location  || \"Location not specified\";\n    const pitch   = j.pitch     || \"Check details.\";\n    const link    = j.link      || orig.link      || \"#\";\n\n    // We prefer the original scraped description\n    const description = orig.description || orig.full_description || j.description || \"\";\n\n    message += `${index + 1}. **${company}** - ${title}\\n`;\n    message += `📍 ${loc}\\n`;\n    message += `💡 ${pitch}\\n`;\n    message += `🔗 ${link}\\n\\n`;\n\n    jobs_raw.push({\n      company,\n      title,\n      location: loc,\n      pitch,\n      link,\n      description\n    });\n  });\n\n  // 7. Return single item for the rest of the flow\n  return [\n    {\n      json: {\n        email_body: message,   // used by Gmail\n        jobs_raw,              // used by Split Out → Writer AI → Notion\n        debug_raw_ai           // helpful if something fails later\n      }\n    }\n  ];\n\n} catch (error) {\n  // If anything fails, surface a helpful error and the raw AI text\n  return [\n    {\n      json: {\n        email_body: \"⚠️ Error parsing AI results.\",\n        error: error.message,\n        debug_raw_ai\n      }\n    }\n  ];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -160
+      ],
+      "id": "194cd087-7ebc-4a89-af8b-564a4a25a679",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1344,
+        384
+      ],
+      "id": "7ce2a7ce-684f-4797-b668-292f2951d076",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_NOTION_DATABASE_ID",
+          "mode": "list",
+          "cachedResultName": "SET_IN_N8N",
+          "cachedResultUrl": "REDACTED"
+        },
+        "title": "=",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Company|title",
+              "title": "={{ $json.company }}"
+            },
+            {
+              "key": "Location|rich_text",
+              "textContent": "={{ $json.location }}"
+            },
+            {
+              "key": "Pitch|rich_text",
+              "textContent": "={{ $json.pitch }}"
+            },
+            {
+              "key": "Role|rich_text",
+              "textContent": "={{ $json.title }}"
+            },
+            {
+              "key": "Link|url",
+              "urlValue": "={{ $json.link }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        128
+      ],
+      "id": "8512beb8-1a25-4f95-a4bf-526bd894564f",
+      "name": "Create a database page"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -32,
+        384
+      ],
+      "id": "d4914265-5706-4f38-8f88-e42bbba72c4c",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{{ $json.jobId }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        192,
+        384
+      ],
+      "id": "d047216a-0e0f-4080-8e40-63c7edd01d79",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "description_text",
+              "cssSelector": ".description__text"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        384
+      ],
+      "id": "78d8d588-a96e-45e4-ad94-1ff65339065f",
+      "name": "HTML1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the original info (Title, Link)\n// We reference the NAME of your loop node exactly:\nconst originalJob = $('Loop Over Items').first().json;\n\n// 2. Get the new description we just found\nconst desc = $input.first().json.description_text || \"No description available.\";\n\n// 3. SLEEP (Anti-Ban) - Wait 1.5 seconds\nconst end = Date.now() + 1500;\nwhile (Date.now() < end) continue;\n\nreturn {\n  json: {\n    ...originalJob, \n    full_description: desc.substring(0, 3000) \n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        448
+      ],
+      "id": "3ec11e81-e7ba-4205-b4c6-a703f7f609af",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// create an empty array to store the clean job list\nconst formattedJobs = [];\n\n// Loop through all items coming from the previous node\nfor (const item of items) {\n  formattedJobs.push({\n    title: item.json.title,\n    company: item.json.company,\n    location: item.json.location,\n    link: item.json.link,\n    // You asked to include the description as well:\n    description: item.json.full_description \n  });\n}\n\n// Return the specific format you requested:\n// A single item containing a \"job_list\" array\nreturn [\n  {\n    json: {\n      job_list: formattedJobs\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        -64
+      ],
+      "id": "805facc6-aaad-4c58-a3d2-cdb1c8b7f2d5",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "12563344-0e71-4b97-a2e1-09665c948582",
+              "name": "my_resume",
+              "value": "ANANSH PAHWA — CS + Data Science (Sample Profile)\nPanchkula, Haryana | anansh@example.com | +91 9XXXXXXXXX | linkedin.com/in/anansh | github.com/anansh\n\nSUMMARY\nComputer Science undergrad specializing in Data Science and AI automation. Hands-on with n8n, ETL, NLP (LLMs), and RPA-style workflows. Built end-to-end systems: Autonomous AI Career Orchestrator, AI Technical SEO Audit Engine, AI Book Generator (The Magic Quill), and AI Email Triage & Notion Dashboard. Seeking Data/AI internship to build production-grade automations.\n\nSKILLS\nPython (Pandas, NumPy, scikit-learn), JavaScript, n8n, REST/HTTP, OpenRouter/OpenAI APIs, OCR/IDP basics, Notion API, Git, SQL, TailwindCSS.\n\nPROJECT HIGHLIGHTS\n• AI Email Triage & Notion Dashboard — IMAP ingestion → LLM classification → JSON auditing → Notion sync; future-safe auto-replies by confidence threshold.\n• Autonomous AI Career Orchestrator — self-healing ETL, semantic ranking (Gemma 2), O(n) deduplication, schema-enforced JSON.\n• AI-Driven Technical SEO Audit Engine — map-reduce content analysis, technical checks (robots/sitemap), final report synthesis.\n• AI Book Generator & Interactive Reader — multi-chapter story generator, Tailwind UI with chapter navigation.\n\nEDUCATION\nB.Tech in Computer Science — Specialization in Data Science (Expected YYYY).\n\nNOTE\nThis is SAMPLE content for public repos. Replace with your real resume before applying.\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1136,
+        384
+      ],
+      "id": "1cfc9680-e15b-4d20-a1a9-4ec6a7909808",
+      "name": "Profile Config"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "jobs_raw",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        992,
+        -256
+      ],
+      "id": "ec734f68-8b31-4041-84b2-41bc9dfea313",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Role: You are a professional career writer who specializes in tailoring applications to specific roles.\n\nJob JSON:\n{{ JSON.stringify($json) }}\n\nThis JSON object includes fields like:\n\ncompany\ntitle\nlocation\npitch\nlink\ndescription (full job description text)\nMy resume:\n{{ $item(0).$node[\"Profile Config\"].json.my_resume }}\n\nTask:\n\nWrite a concise, high‑impact cover letter (about 150–200 words) tailored specifically to this job and company, using the \"description\" field as the main source of context.\nSuggest 3–5 resume bullet points rewritten to better match this job description, using the job's skills, tools, and responsibilities from the description.\nOutput STRICTLY as raw JSON with this exact structure (no markdown, no backticks, no extra text).\nCopy company and location EXACTLY from the input Job JSON:\n\n{\n\"company\": \"EXACT company name from the job JSON\",\n\"location\": \"EXACT location from the job JSON\",\n\"cover_letter\": \"full cover letter text here\",\n\"resume_bullets\": [\n\"bullet 1\",\n\"bullet 2\",\n\"bullet 3\"\n]\n}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1216,
+        -256
+      ],
+      "id": "5b2a65c8-279f-40b6-bc57-68dd51b2c8da",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": "tngtech/deepseek-r1t-chimera:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1296,
+        -32
+      ],
+      "id": "a9e2e57c-6922-4fbb-a855-3dee6e273ce5",
+      "name": "OpenRouter Chat Model1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize the plain text string\nlet emailText = \"🚀 **Generated Cover Letters:**\\n\\n\";\n\nlet counter = 1;\n\n// Loop through all items coming from the AI node\nfor (const item of items) {\n    const rawOutput = item.json.output;\n\n    try {\n        // --- THE FIX IS HERE ---\n        // 1. Find the first opening brace '{'\n        const start = rawOutput.indexOf('{');\n        // 2. Find the last closing brace '}' \n        // (This ignores the markdown ``` that was breaking items 4 and 5)\n        const end = rawOutput.lastIndexOf('}');\n\n        if (start !== -1 && end !== -1) {\n            // Extract exactly the JSON part\n            const jsonString = rawOutput.substring(start, end + 1);\n            \n            // Parse the clean string\n            const job = JSON.parse(jsonString);\n\n            // 3. BUILD TEXT OUTPUT\n            emailText += `${counter}. **${job.company}**\\n`;\n            emailText += `📍 ${job.location}\\n`;\n            emailText += `📝 Cover Letter:\\n`;\n            // Add the cover letter and ensure there is a clear separation\n            emailText += `${job.cover_letter}\\n`; \n            emailText += `\\n----------------------------------\\n\\n`;\n            \n            counter++;\n        }\n    } catch (error) {\n        console.log(\"Error parsing item:\", error);\n    }\n}\n\n// 4. SIGNATURE\nemailText += `Regards,\\nAnansh Pahwa`;\n\n// Return a single item containing the text body\nreturn [{\n    json: {\n        email_body: emailText\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        -256
+      ],
+      "id": "61907e82-57f0-4e98-943e-f8a38a867ceb",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "sendTo": "your_email@example.com",
+        "subject": "Wahooo, Job Postings",
+        "emailType": "text",
+        "message": "=\n{{ $json.email_body }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1792,
+        -256
+      ],
+      "id": "99d28961-89b5-47e5-b135-fb8c1913e008",
+      "name": "Send a message1",
+      "webhookId": "REDACTED"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the raw output from the AI Agent\nconst rawOutput = items[0].json.output;\nlet jobItems = [];\n\ntry {\n    // 1. CLEANUP: Extract the JSON array\n    // We look for the first '[' and last ']' to ignore any \"Here is your JSON\" text\n    const start = rawOutput.indexOf('['); \n    const end = rawOutput.lastIndexOf(']');\n\n    if (start !== -1 && end !== -1) {\n        const jsonString = rawOutput.substring(start, end + 1);\n        const jobs = JSON.parse(jsonString);\n\n        // 2. PREPARE ITEMS FOR NOTION\n        jobItems = jobs.map(job => {\n            return {\n                json: {\n                    company: job.company,\n                    title: job.title,\n                    location: job.location,\n                    pitch: job.pitch,\n                    link: job.link\n                }\n            };\n        });\n    }\n} catch (error) {\n    console.log(\"Error parsing:\", error);\n    return [{ json: { error: \"Failed to parse job data\" } }];\n}\n\n// Return separate items so Notion creates 1 row per job\nreturn jobItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        128
+      ],
+      "id": "db9d24ac-7138-4469-8697-16b3a2f0924c",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Career Orchestrator | Live Demo</title>\n    <style>\n        /* --- CORE STYLES --- */\n        :root {\n            --bg: #050505;\n            --surface: #0f0f0f;\n            --primary: #8b5cf6;\n            --accent: #06b6d4;\n            --text: #e2e8f0;\n            --font-mono: 'JetBrains Mono', monospace;\n            --font-main: 'Inter', sans-serif;\n        }\n        * { margin: 0; padding: 0; box-sizing: border-box; }\n        body { background: var(--bg); color: var(--text); font-family: var(--font-main); overflow-x: hidden; }\n\n        /* --- LAYOUT --- */\n        .container { max-width: 1000px; margin: 0 auto; padding: 0 2rem; }\n        .hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; }\n        \n        /* --- TYPOGRAPHY --- */\n        h1 { font-size: 3.5rem; letter-spacing: -2px; line-height: 1.1; margin-bottom: 1rem; }\n        .gradient-text { background: linear-gradient(135deg, #fff 0%, var(--primary) 50%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }\n        p { color: #94a3b8; font-size: 1.1rem; max-width: 600px; margin-bottom: 2rem; }\n\n        /* --- THE INPUT CONSOLE --- */\n        .input-box {\n            background: rgba(255,255,255,0.03);\n            border: 1px solid rgba(255,255,255,0.1);\n            padding: 2rem;\n            border-radius: 16px;\n            width: 100%;\n            max-width: 500px;\n            backdrop-filter: blur(10px);\n            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);\n            transition: 0.3s;\n        }\n        .input-group { text-align: left; margin-bottom: 1rem; }\n        label { display: block; font-size: 0.8rem; color: var(--accent); margin-bottom: 5px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 1px; }\n        input {\n            width: 100%;\n            background: rgba(0,0,0,0.3);\n            border: 1px solid #333;\n            padding: 12px;\n            color: white;\n            border-radius: 6px;\n            font-family: var(--font-mono);\n            font-size: 1rem;\n            outline: none;\n            transition: 0.2s;\n        }\n        input:focus { border-color: var(--primary); box-shadow: 0 0 15px rgba(139, 92, 246, 0.2); }\n        \n        button {\n            width: 100%;\n            padding: 14px;\n            background: var(--primary);\n            color: white;\n            border: none;\n            border-radius: 6px;\n            font-weight: 700;\n            font-size: 1rem;\n            cursor: pointer;\n            transition: 0.2s;\n            margin-top: 10px;\n        }\n        button:hover { background: #7c3aed; transform: translateY(-2px); }\n        button:active { transform: translateY(0); }\n\n        /* --- THE TERMINAL --- */\n        .terminal-window {\n            margin-top: 3rem;\n            background: #0d0d0d;\n            border: 1px solid #333;\n            border-radius: 8px;\n            padding: 1.5rem;\n            font-family: var(--font-mono);\n            text-align: left;\n            width: 100%;\n            max-width: 800px;\n            min-height: 250px;\n            display: none; /* Hidden initially */\n            box-shadow: 0 0 50px rgba(139, 92, 246, 0.1);\n        }\n        .code-line { margin-bottom: 5px; opacity: 0; animation: fadeIn 0.2s forwards; }\n        .success { color: #10b981; } .cmd { color: var(--accent); } .warn { color: #f59e0b; }\n\n        @keyframes fadeIn { to { opacity: 1; } }\n        .glow { position: absolute; width: 400px; height: 400px; background: var(--primary); filter: blur(200px); opacity: 0.15; z-index: -1; }\n    </style>\n</head>\n<body>\n\n    <div class=\"glow\" style=\"top: -100px; left: 50%; transform: translateX(-50%);\"></div>\n\n    <section class=\"hero\">\n        <div class=\"container\">\n            <h1>Configure Your <br><span class=\"gradient-text\">Career Agent</span></h1>\n            <p>Enter your target role below. The agent will autonomously scrape, filter, and apply logic to find your perfect match.</p>\n\n            <!-- INPUT FORM -->\n            <div class=\"input-box\" id=\"inputSection\">\n                <form id=\"agentForm\">\n                    <div class=\"input-group\">\n                        <label>Target Role</label>\n                        <input type=\"text\" id=\"role\" placeholder=\"e.g. Data Scientist\" required>\n                    </div>\n                    <div class=\"input-group\">\n                        <label>Location</label>\n                        <input type=\"text\" id=\"location\" placeholder=\"e.g. Remote / New York\" required>\n                    </div>\n                    <button type=\"submit\">🚀 Deploy Agent</button>\n                </form>\n            </div>\n\n            <!-- TERMINAL (Appears after click) -->\n            <div class=\"terminal-window\" id=\"terminal\">\n                <div style=\"display:flex; gap:8px; margin-bottom:15px;\">\n                    <div style=\"width:10px; height:10px; background:#ef4444; border-radius:50%\"></div>\n                    <div style=\"width:10px; height:10px; background:#f59e0b; border-radius:50%\"></div>\n                    <div style=\"width:10px; height:10px; background:#10b981; border-radius:50%\"></div>\n                </div>\n                <div id=\"logs\"></div>\n            </div>\n\n        </div>\n    </section>\n\n    <script>\n        document.getElementById('agentForm').addEventListener('submit', function(e) {\n            e.preventDefault();\n            \n            // 1. Get User Input\n            const role = document.getElementById('role').value;\n            const location = document.getElementById('location').value;\n\n            // 2. UI Transition\n            document.getElementById('inputSection').style.display = 'none';\n            document.getElementById('terminal').style.display = 'block';\n\n            // 3. Start the \"Fake\" Terminal Logic\n            runTerminal(role, location);\n\n            // 4. (Optional) Send to n8n Webhook\n            // fetch('YOUR_N8N_WEBHOOK_URL', {\n            //     method: 'POST',\n            //     body: JSON.stringify({ role: role, location: location })\n            // });\n        });\n\n        function runTerminal(role, location) {\n            const container = document.getElementById('logs');\n            const steps = [\n                { text: `> Initializing environment for target: \"${role}\"...`, color: 'white', delay: 500 },\n                { text: `> Setting search radius: ${location}`, color: 'white', delay: 1200 },\n                { text: `> connecting to web_scraper_v2...`, color: 'cmd', delay: 2000 },\n                { text: `> [200 OK] LinkedIn Guest Access Granted.`, color: 'success', delay: 3000 },\n                { text: `> Scraping 14 sources... Found 32 raw matches.`, color: 'white', delay: 4500 },\n                { text: `> Sending data to Gemma-9B for semantic filtering...`, color: 'warn', delay: 6000 },\n                { text: `> ... Analyzing salary transparency`, color: 'white', delay: 7000 },\n                { text: `> ... Analyzing tech stack match`, color: 'white', delay: 7500 },\n                { text: `> [FILTERED] 27 junk roles removed. 5 high-quality matches found.`, color: 'success', delay: 9000 },\n                { text: `> Generating cover letters...`, color: 'cmd', delay: 10000 },\n                { text: `> Syncing with Notion Database...`, color: 'white', delay: 11500 },\n                { text: `> [COMPLETE] Report sent to email.`, color: 'success', delay: 12500 },\n            ];\n\n            let cumulativeTime = 0;\n\n            steps.forEach(step => {\n                cumulativeTime += step.delay; // actually this logic makes them run sequentially if we just add delay\n                // Better logic for simple sequential typing:\n                setTimeout(() => {\n                    const div = document.createElement('div');\n                    div.className = `code-line ${step.color}`;\n                    div.innerText = step.text;\n                    container.appendChild(div);\n                    container.scrollTop = container.scrollHeight;\n                }, step.delay);\n            });\n        }\n    </script>\n</body>\n</html>"
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -1360,
+        3872
+      ],
+      "id": "7854ff84-452e-403a-bab3-841f8346ae41",
+      "name": "HTML2"
+    }
+  ],
+  "pinData": {
+    "AI Agent": [
+      {
+        "json": {
+          "output": "```json\n[\n  {\n    \"company\": \"Inficore Soft\",\n    \"title\": \"Machine Learning Intern\",\n    \"location\": \"India\",\n    \"pitch\": \"Paid internship (₹14,500) with a focus on Python, Scikit-learn, TensorFlow, and PyTorch for model development and deployment.\",\n    \"link\": \"https://in.linkedin.com/jobs/view/machine-learning-intern-at-inficore-soft-4369367348?position=3&pageNum=0&refId=fhBzLPGGX5Cc%2Bvg6XoG26A%3D%3D&trackingId=n%2BZn7xrUzlpq1klOECbcLw%3D%3D\",\n    \"description\": \"Machine Learning Intern\\n\\n\\n\\n\\nCompany: Inficore Soft\\n\\nDuration: 1 to 3 months\\n\\nEmployment Type: Full-time, Internship\\n\\nLocation: Remote\\n\\nStipend: ₹14,500 per month\\n\\n\\n\\n\\nAbout Company\\n\\nInficore Soft is committed to advancing AI and machine learning solutions that\\nsolve real-world problems. We provide interns with opportunities to work on\\ncutting-edge projects in a collaborative environment.\\n\\n\\n\\n\\nAbout the Role\\n\\nWe are seeking a Machine Learning Intern to work on model development, training,\\nand deployment tasks.\\n\\n\\n\\n\\nResponsibilities\\n\\n\\n\\n\\n* Preprocess datasets for ML models.\\n\\n* Implement supervised and unsupervised algorithms.\\n\\n* Optimize model performance.\\n\\n* Collaborate with data scientists on projects.\\n\\n\\n\\n\\n\\n\\n\\nRequirements\\n\\n\\n\\n\\n* Pursuing/completed degree in Computer Science, AI, or related field.\\n\\n* Strong Python programming skills.\\n\\n* Familiarity with ML libraries (Scikit-learn, TensorFlow, PyTorch).\\n\\n* Knowledge of statistics and probability.\\n\\n\\n\\n\\n\\n\\n\\nBenefits\\n\\n\\n\\n\\n* Hands-on ML project experience.\\n\\n* Mentorship from AI experts.\\n\\n* Flexible remote work environment.\\n\\n* Monthly stipend of ₹14,500.\"\n  },\n  {\n    \"company\": \"Skillzenloop\",\n    \"title\": \"Machine Learning Intern\",\n    \"location\": \"India\",\n    \"pitch\": \"Paid internship (₹15,000) offering practical exposure to machine learning concepts using Python, Pandas, and NumPy.\",\n    \"link\": \"https://in.linkedin.com/jobs/view/machine-learning-intern-at-skillzenloop-4360591836?position=7&pageNum=0&refId=fhBzLPGGX5Cc%2Bvg6XoG26A%3D%3D&trackingId=TCmGjLo2CqCOUYVqfi%2B4A%3D%3D\",\n    \"description\": \"Machine Learning Intern (Remote)\\n\\n\\n\\n\\nCompany: Skillzenloop\\n\\nInternship Type: Full-Time\\n\\nDuration: 1–3 Months\\n\\nStipend: ₹15,000 per month\\n\\nWork Mode: Remote\\n\\n\\n\\n\\n⸻\\n\\n\\n\\n\\nInternship Overview\\n\\n\\n\\n\\nSkillzenloop is offering a learning-oriented opportunity for a Machine Learning\\nIntern who is interested in understanding how data-driven models are built and\\nevaluated. This internship focuses on practical exposure to machine learning\\nconcepts through guided, real-world tasks in a remote environment.\\n\\n\\n\\n\\n⸻\\n\\n\\n\\n\\nWhat You’ll Be Working On\\n\\n• Preparing and organizing datasets for analysis\\n\\n• Performing basic exploratory data analysis (EDA)\\n\\n• Assisting in building and testing machine learning models\\n\\n• Working with features, model evaluation, and results interpretation\\n\\n• Supporting ML-related documentation and reporting\\n\\n• Collaborating with team members on data-driven initiatives\\n\\n\\n\\n\\n⸻\\n\\n\\n\\n\\nSkills & Knowledge\\n\\n• Basic understanding of machine learning concepts\\n\\n• Familiarity with Python programming\\n\\n• Exposure to libraries such as Pandas, NumPy, or Scikit-learn is a plus\\n\\n• Basic knowledge of statistics or data analysis is an advantage\\n\\n• Logical thinking and problem-solving skills\\n\\n• Willingness to learn and experiment with models\\n\\n• Ability to work independently in a remote setup\\n\\n\\n\\n\\n⸻\\n\\n\\n\\n\\nWho Can Apply\\n\\n• Students or recent graduates from any technical background\\n\\n• Freshers interested in machine learning or data science\\n\\n• Candidates seeking hands-on exposure to ML workflows\\n\\n• Applicants available for a full-time internship (1–3 months)\\n\\n\\n\\n\\n⸻\\n\\n\\n\\n\\nWhat Skillzenloop Offers\\n\\n• Practical exposure to real-world machine learning tasks\\n\\n• Learning-focused environment with guidance\\n\\n• Monthly stipend of ₹15,000\\n\\n• Flexible remote working model\\n\\n• Internship completion certificate\\n\\n• Opportunity to build a strong foundation in machine learning\"\n  },\n  {\n    \"company\": \"Infrabyte Consulting\",\n    \"title\": \"Machine Learning Intern\",\n    \"location\": \"India\",\n    \"pitch\": \"Paid internship (₹15,700) focused on building and evaluating ML models using Python, Scikit-learn, TensorFlow, and Keras.\",\n    \"link\": \"https://in.linkedin.com/jobs/view/machine-learning-intern-at-infrabyte-consulting-4369344046?position=10&pageNum=0&refId=fhBzLPGGX5Cc%2Bvg6XoG26A%3D%3D&trackingId=StCLAiLYmDNfTcGemystFw%3D%3D\",\n    \"description\": \"8. Machine Learning Intern – Infrabyte Consulting\\n\\n\\n\\n\\nDuration: 2–3 months | Full-time | Remote | Stipend: ₹15,700\\n\\n\\n\\n\\nAbout the Role\\n\\n\\n\\n\\nInfrabyte Consulting is looking for a Machine Learning Intern to contribute to\\nprojects involving predictive analytics, NLP, or computer vision. You will gain\\nhands-on experience in building and evaluating ML models.\\n\\n\\n\\n\\nResponsibilities\\n\\n\\n\\n\\n* Collect and preprocess datasets.\\n\\n* Build and train ML models using Python libraries.\\n\\n* Evaluate model performance and suggest improvements.\\n\\n* Document methodologies and results.\\n\\n\\n\\n\\n\\n\\n\\nRequirements\\n\\n\\n\\n\\n* Pursuing or recently completed a degree in Computer Science, Data Science, or\\nrelated field.\\n\\n* Strong knowledge of Python and ML libraries.\\n\\n* Familiarity with data preprocessing techniques.\\n\\n\\n\\n\\n\\n\\n\\nSkills\\n\\n\\n\\n\\nPython, Scikit-learn, TensorFlow, Keras, Pandas, NumPy, Model Evaluation\\n\\n\\n\\n\\nBenefits\\n\\n\\n\\n\\n* Monthly stipend of ₹15,700.\\n\\n* Internship certificate.\\n\\n* Letter of Recommendation (LOR).\\n\\n* Exposure to real-world ML projects.\"\n  },\n  {\n    \"company\": \"FanCode\",\n    \"title\": \"SDET Internship\",\n    \"location\": \"Mumbai, Maharashtra, India\",\n    \"pitch\": \"Internship opportunity with potential full-time conversion, focusing on automation using Selenium, Playwright, or Cypress, and programming in JavaScript, Python, or Java.\",\n    \"link\": \"https://in.linkedin.com/jobs/view/sdet-internship-at-fancode-4359585240?position=1&pageNum=0&refId=fhBzLPGGX5Cc%2Bvg6XoG26A%3D%3D&trackingId=E77cPe2KrxN5KW1n9gaHJw%3D%3D\",\n    \"description\": \"[Description from Input Data]\"\n  },\n  {\n    \"company\": \"WEBS IT SOLUTION\",\n    \"title\": \"Data Analyst Intern\",\n    \"location\": \"India\",\n    \"pitch\": \"Performance-based internship (₹7,500 stipend) with a focus on Python, Power BI, and SQL for data analysis and visualization.\",\n    \"link\": \"https://in.linkedin.com/jobs/view/machine-learning-intern-at-webs-it-solution-4369344046?position=10&pageNum=0&refId=fhBzLPGGX5Cc%2Bvg6XoG26A%3D%3D&trackingId=StCLAiLYmDNfTcGemystFw%3D%3D\",\n    \"description\": \"Data Analyst Intern\\n\\nCompany: WEBS IT SOLUTION\\n\\nLocation: Remote\\n\\nDuration: 3 Months\\n\\nStipend: ₹7,500 (Paid | Performance-Based)\\n\\nEmployment Opportunity: Potential full-time role based on performance +\\nCertificate of Internship\\n\\nAbout WEBS IT SOLUTION\\n\\nWEBS IT SOLUTION is a technology and training organization focused on preparing\\nindividuals for the future of work. Through industry-aligned programs in Data\\nAnalytics, IT, AI, and Digital Technologies, the organization provides hands-on\\nlearning, real-world projects, and structured mentorship to develop job-ready\\nprofessionals.\\n\\nRole Overview\\n\\nAs a Data Analyst Intern at WEBS IT SOLUTION, you will work with real datasets\\nto perform analytical tasks and create insightful dashboards and visualizations\\nthat support data-driven decision-making. This role is ideal for candidates\\nseeking strong foundational and practical experience in data analytics and\\nbusiness intelligence.\\n\\nKey Responsibilities\\n\\n * Perform data cleaning, transformation, and validation to prepare datasets for\\n   analysis\\n * Conduct Exploratory Data Analysis (EDA) using Python or R\\n * Build interactive dashboards and visualizations using Power BI, Tableau, or\\n   MS Excel\\n * Interpret data and prepare reports with actionable insights and business\\n   recommendations\\n * Analyze large datasets to identify trends, patterns, and opportunities\\n\\nEligibility & Requirements\\n\\n * Working knowledge of Python (Pandas, NumPy, Matplotlib) or strong proficiency\\n   in MS Excel\\n * Basic understanding of SQL and data visualization tools\\n * Strong analytical thinking and problem-solving skills\\n * Prior coursework or personal projects in data analysis will be an added\\n   advantage\\n\\nWhat You Will Gain\\n\\n * Paid stipend of ₹7,500 (Performance-Based)\\n * Certificate of Internship from WEBS IT SOLUTION\\n * Hands-on exposure to real-world analytics projects\\n * Mentorship from experienced data analysts\\n * Career guidance, networking, and placement support\\n * Potential full-time employment opportunity based on performance\"\n  }\n]\n```"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Profile Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "HTML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Profile Config": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "Create a database page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML2": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "8119ffd5-b9d1-4fb4-ace2-2bd7b8d7882b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "REDACTED"
+  },
+  "id": "AtMQ9eZoNNaRn31A",
+  "tags": []
+}
