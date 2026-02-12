@@ -1,0 +1,921 @@
+{
+  "name": "Automated SEO Audit with AI Content Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "SEO Audit Request",
+        "formDescription": "Enter the URL and target keyword for comprehensive SEO analysis",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Website URL",
+              "fieldName": "url",
+              "placeholder": "https://example.com",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Target Keyword",
+              "fieldName": "target_keyword",
+              "placeholder": "your target keyword",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "8b52f28a-9aed-4c79-a5ae-8adf07be9d3b",
+      "name": "SEO Audit Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -4752,
+        5280
+      ],
+      "webhookId": "REDACTED"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "url",
+              "value": "={{ $('URL Parser').item.json.original_url }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "target_keyword",
+              "value": "={{ $('URL Parser').item.json.target_keyword }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "robots_url",
+              "value": "={{ $('URL Parser').item.json.root_domain + '/robots.txt' }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "sitemap_url",
+              "value": "={{ $('URL Parser').item.json.root_domain + '/sitemap.xml' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c7ffa47f-4dbe-456e-8e94-51751a27a2f7",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4304,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('URL Parser').item.json.original_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "timeout": 30000
+        }
+      },
+      "id": "64116d70-9a2c-4bf7-a5a5-dfab01308734",
+      "name": "Fetch HTML Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -4080,
+        4896
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "3f438a1c-6d46-428a-841a-019d3bbd07a4",
+      "name": "Loop Over Sections",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3408,
+        4896
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"section_name\": {\n      \"type\": \"string\",\n      \"description\": \"Name of the analyzed section (e.g., 'Page Metadata & Identity' or 'Main Content Part 1')\"\n    },\n    \"relevance_score\": {\n      \"type\": \"number\",\n      \"description\": \"Score from 0-100 indicating SEO quality\",\n      \"minimum\": 0,\n      \"maximum\": 100\n    },\n    \"page_type_detected\": {\n      \"type\": \"string\",\n      \"description\": \"The type of page detected based on metadata (e.g., 'News Article', 'Category Hub', 'Landing Page', or 'N/A' if just a content chunk)\"\n    },\n    \"critical_issues\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"List of severe errors (e.g., 'Missing H1', 'Stuffed Keywords', 'Wall of Text')\"\n    },\n    \"optimization_recommendations\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"List of specific, actionable improvements\"\n    },\n    \"keyword_analysis\": {\n      \"type\": \"string\",\n      \"description\": \"A specific summary of how the target keyword is used (density, placement, natural flow)\"\n    }\n  },\n  \"required\": [\n    \"section_name\",\n    \"relevance_score\",\n    \"page_type_detected\",\n    \"critical_issues\",\n    \"optimization_recommendations\",\n    \"keyword_analysis\"\n  ]\n}"
+      },
+      "id": "ec99382b-0fea-4f89-a092-42dd8b826459",
+      "name": "Section Analysis Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -3056,
+        4864
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "SET_IN_N8N"
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 2000,
+          "temperature": 0.7
+        }
+      },
+      "id": "96629139-a1c9-4578-a235-1be89d8251c8",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -3184,
+        4864
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.content }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an Senior SEO Analyst. You are analyzing one specific section of a webpage against the target keyword: \"{{ $json.target_keyword }}\".\n\n**INPUT DATA:**\n- Section Name: \"{{ $json.section_name }}\"\n- Content: \"{{ $json.content }}\"\n\n**INSTRUCTIONS:**\n\n**CASE 1: If Section Name is \"Page Metadata & Identity\"**\n1. Analyze the H1 vs. Page Title. Do they match? Do they contain the keyword?\n2. Analyze the Meta Description. Is it actionable?\n3. **Crucial:** Identify the \"Page Type\" (News Article, Product Page, Category Hub, or Home Page) based on the H1 and Title.\n\n**CASE 2: If Section Name starts with \"Main Content\"**\n1. Analyze the text for Keyword Density. Is it natural or stuffed?\n2. Check for \"Wall of Text\" issues (paragraphs > 300 words).\n3. Ignore missing H1 tags in this section (H1s belong in metadata).\n4. Suggest inline internal linking opportunities based on the specific topics discussed in this text chunk.\n\n**OUTPUT RULES:**\n- Do not provide conversational filler.\n- Return ONLY valid JSON.\n\n**JSON FORMAT:**\n{\n  \"section_name\": \"{{ $json.section_name }}\",\n  \"relevance_score\": (0-100),\n  \"page_type_detected\": \"String (e.g. 'News Article' or 'N/A')\",\n  \"critical_issues\": [\"List of strings\"],\n  \"optimization_recommendations\": [\"List of specific strings\"],\n  \"keyword_analysis\": \"String summary\"\n}"
+        }
+      },
+      "id": "767cce54-4377-4b9d-9091-5dc09c805935",
+      "name": "AI Section Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -3184,
+        4640
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "content_analysis_report",
+        "options": {}
+      },
+      "id": "8b08cb72-275f-4b23-9133-eb9d1907e1a5",
+      "name": "Aggregate AI Responses",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -3120,
+        5040
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('URL Parser').item.json.root_domain }}/robots.txt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.google.com/"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "43b65072-5d5d-4ffd-853b-68cb1dbbe63a",
+      "name": "Check Robots.txt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -3632,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "bdcc7ee3-373c-4b66-ac8a-35b259c2ea8c",
+      "name": "Robots Status Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3408,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "robots_status",
+              "value": "Found",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "robots_details",
+              "value": "={{ $json.body.substring(0, 500) }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "robots_status_code",
+              "value": "={{ $json.statusCode }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7e30c0aa-6e42-444a-a9cf-352d95d18f60",
+      "name": "Robots Found",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3120,
+        5232
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "robots_status",
+              "value": "Missing",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "robots_details",
+              "value": "No robots.txt file found",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "robots_status_code",
+              "value": "={{ $('Check Robots.txt').item.json.statusCode }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6a5527da-36e6-4730-8533-c8a148305036",
+      "name": "Robots Missing",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3120,
+        5424
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('URL Parser').item.json.root_domain }}/sitemap.xml",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.google.com/"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "399cabfc-c96f-4c20-8664-ff6fc74d2b0e",
+      "name": "Check Sitemap.xml",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -3408,
+        5664
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "691f1a61-fdcd-4c0d-b7b1-ef8debf2a3bb",
+      "name": "Sitemap Status Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3120,
+        5664
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "sitemap_status",
+              "value": "Found",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "sitemap_details",
+              "value": "={{ $json.data.substring(0, 500) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a2f93cd2-9d33-424f-b95e-1a336dc055ca",
+      "name": "Sitemap Found",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2832,
+        5568
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "sitemap_status",
+              "value": "Missing",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "sitemap_details",
+              "value": "No sitemap.xml file found",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "sitemap_status_code",
+              "value": "={{ $('Check Sitemap.xml').item.json.statusCode }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "775959d1-b23e-4553-b6c2-74a044f10467",
+      "name": "Sitemap Missing",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2832,
+        5760
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "0848ed32-d688-4ad4-b359-1a79d499b98f",
+      "name": "Merge All Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -2832,
+        5232
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify($input.all()) }}",
+        "options": {
+          "systemMessage": "# Role\nYou are a Senior Technical SEO Strategist for a major publishing agency. You are generating a final audit report based on a structured JSON dataset.\n\n# Input Data Structure\nYou have received a single JSON object containing three distinct data sources:\n1. **`robotsData`**: Status of robots.txt (e.g., Found/Missing, Content).\n2. **`sitemapData`**: Status of sitemap.xml.\n3. **`aiData`**: An ARRAY of analysis objects.\n   - The FIRST item is always **\"Page Metadata & Identity\"** (Contains H1, Title, Detected Page Type).\n   - The REST of the items are **\"Main Content Parts\"** (Chunks of the article body).\n\n# CRITICAL ANALYSIS LOGIC\n1. **Determine Page Type (PRIORITY):**\n   - Look specifically at the first item in `aiData` (Metadata section).\n   - Read the `page_type_detected` field.\n   - **Rule:** If the detected type is \"News Article\" or \"Blog Post,\" evaluate the page based on **Readability** and **Inline Links**. Do NOT evaluate it as a Landing Page.\n\n2. **Synthesize Content Scores:**\n   - Do not just take the first score.\n   - Look at the `relevance_score` across ALL items in `aiData`.\n   - **Calculation:** Your Final Health Score should be a weighted average (Metadata matters most).\n   - *Hallucination Check:* If \"Content Part 2\" complains about a missing H1, IGNORE IT. H1s are only required in the Metadata section.\n\n3. **Technical Validation:**\n   - **Robots.txt:** If `robotsData.status` (or similar) indicates \"Found\" or \"200\", report it as **PASS**.\n   - **Sitemap:** If `sitemapData.status` indicates \"Found\", report it as **PASS**.\n   - If missing, mark as Critical Error.\n\n# Report Structure (Output in Markdown)\n\n## 1. Executive Summary\n- **Target Keyword:** (Extract `target_keyword` from the data).\n- **Detected Page Type:** (e.g., \"News Article\").\n- **Global Health Score:** (0-100).\n- **Verdict:** (Healthy / Optimization Needed / Critical).\n- **Summary:** A 2-sentence overview of the page's status.\n\n## 2. Technical Health\n| Check | Status | Verdict |\n| :--- | :--- | :--- |\n| **Robots.txt** | [Found/Missing] | (1 sentence analysis) |\n| **Sitemap.xml** | [Found/Missing] | (1 sentence analysis) |\n\n## 3. Content & Structure Deep Dive\n*(Synthesize the findings from `aiData`. Do not list every chunk separately. Merge duplicate issues.)*\n\n- **Identity & Metadata:**\n  - **H1 vs Title:** (Does the Metadata section say they match?)\n  - **Meta Description:** (Is it optimized?)\n\n- **Body Content Analysis:**\n  - **Keyword Density:** (Summarize findings from the Content Parts. Is the keyword used naturally?)\n  - **Readability:** (Are paragraphs too long? Is the language clear?)\n  - **Internal Linking:** (Are there inline links in the body text?)\n\n## 4. Prioritized Recommendations\nProvide 3 specific, high-impact actions.\n1. **Critical Fix:** (Technical or Metadata issues).\n2. **Content Optimization:** (Keyword or Readability improvements).\n3. **Strategic Growth:** (Linking or Structural advice).\n\n---\n**Tone:** Professional, direct, and encouraging.\n**Output:** Markdown ONLY. No JSON.",
+          "maxIterations": 10,
+          "returnIntermediateSteps": false,
+          "passthroughBinaryImages": true,
+          "enableStreaming": true
+        }
+      },
+      "id": "81bdb76b-5416-4d23-adf6-b50eb4b5e500",
+      "name": "Final SEO Report Generator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2384,
+        5568
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "model": "arcee-ai/trinity-large-preview:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -2320,
+        5792
+      ],
+      "id": "b506fd62-bbed-4988-8c41-900be9c6017e",
+      "name": "OpenRouter Chat Model"
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "output",
+        "options": {
+          "encoding": "utf8",
+          "fileName": "SEO_Audit_Report.txt"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -2032,
+        5568
+      ],
+      "id": "84866fbe-a4c2-496c-aa54-ead8d1b6e3e3",
+      "name": "Convert to File",
+      "executeOnce": false,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "ea73f308-fab4-4e6d-91e6-cbb8ac1d4a6a",
+      "name": "Merge All Paths1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -2608,
+        5568
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract URL and target keyword from form input\nconst inputUrl = $input.item.json.url;\nconst targetKeyword = $input.item.json.target_keyword;\n\n// Parse the root domain from the URL\nlet rootDomain = '';\ntry {\n  const match = inputUrl.match(/^(https?:\\/\\/[^\\/]+)/);\n  rootDomain = match ? match[1] : inputUrl;\n} catch (e) {\n  rootDomain = inputUrl;\n}\n\n// Return parsed data\nreturn [{\n  json: {\n    original_url: inputUrl,\n    root_domain: rootDomain,\n    target_keyword: targetKeyword\n  }\n}];"
+      },
+      "id": "b1258de3-da96-4a8c-952e-b661f88a6aa9",
+      "name": "URL Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4528,
+        5280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "pageTitle",
+              "cssSelector": "title"
+            },
+            {
+              "key": "h1",
+              "cssSelector": "h1"
+            },
+            {
+              "key": "metaDesc",
+              "cssSelector": "meta[name=\"description\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "mainContent",
+              "cssSelector": "article, main, #bodyContent, #content, .content, .post, .entry-content",
+              "skipSelectors": "script, style, nav, footer, .sidebar, .menu, .ad, .advertisement"
+            }
+          ]
+        },
+        "options": {
+          "trimValues": true,
+          "cleanUpText": true
+        }
+      },
+      "id": "2a6509d0-dfd2-4955-a096-a619b6ce8674",
+      "name": "Extract HTML Content",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -3840,
+        4880
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the Clean Data from the \"HTML Extract\" node\n// Note: We use the incoming data directly.\nconst input = $input.first().json;\n\n// 2. Get the Target Keyword from your Form\n// (We add a fallback just in case the form is empty)\nlet targetKeyword = \"General SEO\";\ntry {\n    targetKeyword = $('SEO Audit Form').first().json.target_keyword;\n} catch (e) {\n    // If form name is different, we proceed without crashing\n}\n\n// 3. Set Variables (Handling missing data gracefully)\nconst title = input.pageTitle || \"No Title Found\";\nconst h1 = input.h1 || \"No H1 Tag Found\";\nconst meta = input.metaDesc || \"No Meta Description\";\nlet bodyText = input.mainContent || \"\";\n\n// Clean up extra whitespace/newlines to save AI tokens\nbodyText = bodyText.replace(/\\s+/g, ' ').trim();\n\nconst sections = [];\n\n// --- SECTION 1: METADATA (The \"Identity\") ---\n// We send this first so the AI knows if it's a News Article or a Category Page\nsections.push({\n    section_name: \"Page Metadata & Identity\",\n    content: `Page Title: ${title}\\nH1 Tag: ${h1}\\nMeta Description: ${meta}`,\n    target_keyword: targetKeyword,\n    is_metadata: true\n});\n\n// --- SECTION 2: MAIN CONTENT (Chunked) ---\n// We split the body into chunks of 3000 characters so the AI doesn't crash\nconst chunkSize = 3000;\n\nif (bodyText.length < 50) {\n    // Fallback: If body is empty (extraction failed), warn the AI\n    sections.push({\n        section_name: \"Content Warning\",\n        content: \"Main content text was too short or could not be extracted. Analyze based on Metadata only.\",\n        target_keyword: targetKeyword,\n        is_metadata: false\n    });\n} else {\n    for (let i = 0; i < bodyText.length; i += chunkSize) {\n        sections.push({\n            section_name: `Main Content Part ${Math.floor(i / chunkSize) + 1}`,\n            content: bodyText.substring(i, i + chunkSize),\n            target_keyword: targetKeyword,\n            is_metadata: false\n        });\n\n        // SAFETY LIMIT: Stop after 4 chunks (12,000 chars) to save money/tokens\n        // You can increase this number if you want to analyze longer pages\n        if (i > 12000) break;\n    }\n}\n\n// 4. Return the array in n8n format\nreturn sections.map(section => ({ json: section }));"
+      },
+      "id": "58da19ed-0e81-4400-b2b9-eafa59fe66f4",
+      "name": "Format Data for Loop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3632,
+        4896
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "SEO Audit Form": {
+      "main": [
+        [
+          {
+            "node": "URL Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Fetch HTML Content",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Robots.txt",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Sitemap.xml",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch HTML Content": {
+      "main": [
+        [
+          {
+            "node": "Extract HTML Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Sections": {
+      "main": [
+        [
+          {
+            "node": "Aggregate AI Responses",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Section Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section Analysis Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Section Analyzer",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Section Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Section Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Robots.txt": {
+      "main": [
+        [
+          {
+            "node": "Robots Status Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Robots Status Check": {
+      "main": [
+        [
+          {
+            "node": "Robots Found",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Robots Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sitemap.xml": {
+      "main": [
+        [
+          {
+            "node": "Sitemap Status Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sitemap Status Check": {
+      "main": [
+        [
+          {
+            "node": "Sitemap Found",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sitemap Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate AI Responses": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Robots Found": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Robots Missing": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Paths": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sitemap Missing": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Sitemap Found": {
+      "main": [
+        [
+          {
+            "node": "Merge All Paths1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Final SEO Report Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final SEO Report Generator": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Paths1": {
+      "main": [
+        [
+          {
+            "node": "Final SEO Report Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "URL Parser": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract HTML Content": {
+      "main": [
+        [
+          {
+            "node": "Format Data for Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data for Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Sections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "59c17449-0b0b-43ab-b8dd-62d08383ff0a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "REDACTED"
+  },
+  "id": "PcH5YCKxKga8iO_5eZYr0",
+  "tags": []
+}
