@@ -1,0 +1,262 @@
+{
+  "name": "Jarvis",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "73951f6d-a170-4356-b945-f96343291963",
+              "name": "Output",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -880,
+        -208
+      ],
+      "id": "72bdea9f-2e81-48ab-8efa-5f4f09acf255",
+      "name": "Output",
+      "notesInFlow": true,
+      "alwaysOutputData": true,
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_CHAT_ID",
+        "text": "={{ $json.Output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -656,
+        -208
+      ],
+      "id": "42fe0cd4-61de-4c1c-81fa-ac2498705ae1",
+      "name": "Send a text message1",
+      "webhookId": "REDACTED",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1680,
+        -48
+      ],
+      "id": "c4ebeb4c-60e6-441a-8a34-3ed2b06f9fdf",
+      "name": "Telegram Trigger",
+      "webhookId": "REDACTED",
+      "alwaysOutputData": true,
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "model": "allenai/molmo-2-8b:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1168,
+        -80
+      ],
+      "id": "88729f11-b7e9-4b1b-b248-0fd01fc91ffd",
+      "name": "OpenRouter Chat Model"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text }}\n\nAnswer this like a professional AI and \nkeep the answers crisps and well formatted.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -1232,
+        -304
+      ],
+      "id": "11f9a6bc-7a33-4525-93fa-ecdec414fb0d",
+      "name": "Jarvis 2.0",
+      "notesInFlow": true,
+      "alwaysOutputData": true,
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "prompt": "={{ $json.message.text }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -1168,
+        96
+      ],
+      "id": "69976079-0fae-4026-8d32-42cb9cd1f917",
+      "name": "Generate an image",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "23f62539-268b-4d8d-8bb2-23349d0ac909",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "^\\/?generate image\\b",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1456,
+        -48
+      ],
+      "id": "a44dd064-1dd4-498f-ab87-19289a53282c",
+      "name": "If",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "REPLACE_WITH_YOUR_CHAT_ID",
+        "binaryData": true,
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -880,
+        96
+      ],
+      "id": "21097186-22d1-4ba3-a344-291c1d92f92e",
+      "name": "Send a photo message",
+      "webhookId": "REDACTED",
+      "alwaysOutputData": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Output": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Jarvis 2.0",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jarvis 2.0": {
+      "main": [
+        [
+          {
+            "node": "Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate an image": {
+      "main": [
+        [
+          {
+            "node": "Send a photo message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Generate an image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Jarvis 2.0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "e094ddcf-6d87-4a32-8efe-d686b728f639",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "REDACTED"
+  },
+  "id": "xjQBGbnV-Eypf7DrFBzvS",
+  "tags": [
+    {
+      "updatedAt": "2026-01-30T10:02:25.207Z",
+      "createdAt": "2026-01-30T10:02:25.207Z",
+      "id": "3mM8BzaDY7Ugbet1",
+      "name": "Jarvis with image"
+    }
+  ]
+}
