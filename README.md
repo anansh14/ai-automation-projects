@@ -33,9 +33,9 @@ If you use n8n yourself, you can import the workflows and adapt them to your own
 │  ├─ README.md
 │  └─ workflow.json
 ├─ career-orchestrator/
-│  ├─ README-hardcoded.md
+│  ├─ README-hardcodedwithNotion.md
 |  ├─ README-interactive.md
-│  ├─ workflow-hardcoded.json      # scheduled, hardcoded role/location + cover letters
+│  ├─ workflow-hardcodedwithNotion.json      # scheduled, hardcoded role/location + cover letters
 │  └─ workflow-interactive.json     # form-driven role/location input
 ├─ LICENSE
 └─ README.md  ← you are here
