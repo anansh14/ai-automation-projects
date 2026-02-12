@@ -66,4 +66,4 @@ Automates job search and shortlisting for tech roles:
 5) Jarvis 2.0 – AI Telegram Chatbot (jarvis-telegram/)
 Telegram bot built with n8n that routes messages between:
 
-a chat branch (LLM answers like a concise, well‑formatted assistant), and an image branch (/generate image …), which calls an image generation node and replies with a photo. The workflow JSON is sanitized (no tokens, webhook IDs redacted, chat IDs placeholdered) and ready to import into n8n.
+A chat branch (LLM answers like a concise, well‑formatted assistant), and an image branch (/generate image …), which calls an image generation node and replies with a photo. The workflow JSON is sanitized (no tokens, webhook IDs redacted, chat IDs placeholdered) and ready to import into n8n.
