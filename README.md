@@ -8,11 +8,12 @@ The goal wasn’t to make toy demos, but to explore what a solo engineer can aut
 - triaging real emails with AI
 - generating full books from a single prompt
 - running technical SEO and career‑intelligence pipelines
+- automating job search and application workflows
 
 Each project lives in its own folder with:
 
-- a short `README.md` that explains what it does
-- an exported `workflow.json` from n8n (with secrets removed)
+- a short `README.md` that explains what it does  
+- one or more exported `workflow*.json` files from n8n (with secrets removed)
 
 If you use n8n yourself, you can import the workflows and adapt them to your own stack.
 
@@ -32,22 +33,29 @@ If you use n8n yourself, you can import the workflows and adapt them to your own
 │  ├─ README.md
 │  └─ workflow.json
 ├─ career-orchestrator/
-│  ├─ README.md
-│  └─ workflow.json
+│  ├─ README-hardcoded.md
+|  ├─ README-interactive.md
+│  ├─ workflow-hardcoded.json      # scheduled, hardcoded role/location + cover letters
+│  └─ workflow-interactive.json     # form-driven role/location input
 ├─ LICENSE
 └─ README.md  ← you are here
 
-
-Projects:
+- Projects:
 
 1) AI Email Triage & Notion Dashboard (ai-email-triage/)
-Classifies incoming Gmail with an LLM (invoice / meeting / urgent / etc.), extracts structured metadata, and logs everything to a single Notion “Email Triage – All” database.
+Classifies incoming Gmail via LLM (invoice / meeting / urgent / newsletter / personal / spam / other), assigns urgency & confidence, extracts summaries and action items, and logs everything into a single Notion “Email Triage – All” database.
 
 2) AI Book Generator & Interactive Reader (ai-book-generator/)
-Turns a user prompt into a multi‑chapter story via LLM, then renders it in a custom book‑style HTML/Tailwind reader.
+Turns a user prompt into a structured, multi‑chapter story via LLM and renders it in a custom book‑style HTML/Tailwind reader (“The Magic Quill”) served directly by n8n.
 
 3) AI‑Driven Technical SEO Audit Engine (seo-audit-engine/)
-Scrapes and analyzes websites using a map‑reduce‑style LLM pipeline, combining technical checks with content/SEO insights.
+Scrapes and analyzes websites using a map‑reduce‑style LLM pipeline: fetches HTML, runs chunked content analysis, checks robots.txt/sitemap.xml, and generates a consolidated Markdown SEO report.
 
-4) Autonomous AI Career Orchestrator (career-orchestrator/)
-Continuously scrapes job listings, cleans them into structured data, and applies semantic ranking (Gemma 2 9B) for career‑intelligence use cases.
+4) Autonomous & Interactive AI Career Orchestrator (career-orchestrator/)
+Automates job search and shortlisting for tech roles:
+
+    a) Autonomous workflow (workflow-autonomous.json):
+    Scheduled agent that scrapes LinkedIn for a hardcoded role/location, deep‑scrapes full descriptions, uses an LLM to           rank/filter top paid roles, writes them to Notion, and emails you both a summary and tailored cover letters.
+    
+    b) Interactive workflow (workflow-interactive.json):
+    Form‑driven version where you enter Target Role + Location; the agent runs the same scraping + ranking pipeline on            demand, sends you a summary email, and can also sync results into Notion.
