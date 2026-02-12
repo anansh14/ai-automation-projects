@@ -189,3 +189,50 @@ Files
 workflow.json – complete n8n workflow (with webhookId and instanceId redacted; you must add your own credentials).
 README.md – this file.
 You may also want to keep a Notion template for the jobs table in a separate doc.
+
+How to use this workflow:
+
+Import into n8n
+
+Create a new workflow in n8n.
+Import workflow.json.
+Set up credentials (locally, not in GitHub)
+
+Gmail credential for the two “Send a message” nodes.
+OpenRouter credentials for the two lmChatOpenRouter nodes (Gemma & DeepSeek models).
+Notion credential + replace REPLACE_WITH_YOUR_NOTION_DATABASE_ID with your own DB ID.
+Customize your profile
+
+Edit the Profile Config node:
+Replace the sample my_resume text with your real profile (or keep the sample in the public repo and change it only on your private clone).
+Configure the search
+
+In the first Code in JavaScript node:
+Change query = "Data Science Intern" → your target role.
+Change loc = "India" → your preferred location.
+Set want Remote = true if you only want remote roles.
+Run it
+
+You can:
+Trigger manually, or
+Enable the Schedule Trigger to run once a day.
+Watch the Executions tab:
+See which jobs were scraped and filtered.
+Confirm that:
+summary email arrives,
+cover‑letter email arrives,
+Notion table updates.
+
+
+Notes & disclaimers
+This workflow scrapes LinkedIn job pages and their guest jobPosting API, which may violate their terms of service if used aggressively or commercially. Treat this as a personal learning project.
+The anti‑ban logic here is very light (small sleep and job cap). If you run it frequently, be considerate.
+Do not commit your real email, Notion IDs, or API keys to GitHub – keep those only in your private n8n instance.
+This project is a good example of combining:
+
+- structured scraping,
+- LLM‑based ranking and filtering,
+- personalized content generation (cover letters),
+- and practical integrations (Email + Notion)
+- into one coherent “career automation” workflow.
+
