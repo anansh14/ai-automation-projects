@@ -34,9 +34,12 @@ If you use n8n yourself, you can import the workflows and adapt them to your own
 │  └─ workflow.json
 ├─ career-orchestrator/
 │  ├─ README-hardcodedwithNotion.md
-|  ├─ README-interactive.md
-│  ├─ workflow-hardcodedwithNotion.json      # scheduled, hardcoded role/location + cover letters
-│  └─ workflow-interactive.json     # form-driven role/location input
+│  ├─ README-interactive.md
+│  ├─ workflow-hardcodedwithNotion.json   # scheduled, hardcoded role/location + cover letters + Notion
+│  └─ workflow-interactive.json           # form-driven role/location input
+├─ jarvis-telegram/
+│  ├─ README.md
+│  └─ workflow.json
 ├─ LICENSE
 └─ README.md  ← you are here
 
@@ -59,3 +62,8 @@ Automates job search and shortlisting for tech roles:
     
     b) Interactive workflow (workflow-interactive.json):
     Form‑driven version where you enter Target Role + Location; the agent runs the same scraping + ranking pipeline on            demand, sends you a summary email, and can also sync results into Notion.
+
+5) Jarvis 2.0 – AI Telegram Chatbot (jarvis-telegram/)
+Telegram bot built with n8n that routes messages between:
+
+a chat branch (LLM answers like a concise, well‑formatted assistant), and an image branch (/generate image …), which calls an image generation node and replies with a photo. The workflow JSON is sanitized (no tokens, webhook IDs redacted, chat IDs placeholdered) and ready to import into n8n.
