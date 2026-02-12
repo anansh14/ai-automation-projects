@@ -1,0 +1,191 @@
+{
+  "name": "Book AI agent",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "book-ui",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e540813f-387b-4aa6-a234-5c81885e61fd",
+      "name": "UI Webhook",
+      "webhookId": "REDACTED"
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = `\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n  <title>AI Book Reader</title>\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n  <script>\n    tailwind.config = {\n      theme: {\n        extend: {\n          colors: {\n            amber: {\n              50: '#fffbeb',\n              100: '#fef3c7',\n              200: '#fde68a',\n              500: '#f59e0b',\n              800: '#92400e',\n              900: '#78350f'\n            }\n          },\n          fontFamily: { serif: ['Georgia', 'serif'] }\n        }\n      }\n    }\n  </script>\n  <style>\n    .paper-texture {\n      background-color: #fffbeb;\n      background-image: url(\"data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E\");\n    }\n    .loading-dots:after {\n      content: ' .';\n      animation: dots 1s steps(5, end) infinite;\n    }\n    @keyframes dots {\n      0%, 20% { color: rgba(0,0,0,0); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); }\n      40% { color: white; text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); }\n      60% { text-shadow: .25em 0 0 white, .5em 0 0 rgba(0,0,0,0); }\n      80%, 100% { text-shadow: .25em 0 0 white, .5em 0 0 white; }\n    }\n  </style>\n</head>\n<body class=\"bg-gray-100 h-screen flex flex-col items-center justify-center font-serif text-gray-800\">\n\n  <!-- GENERATOR SCREEN -->\n  <div id=\"generator-screen\" class=\"w-full max-w-2xl p-4\">\n    <div class=\"bg-white p-8 rounded-lg shadow-2xl border border-amber-200\">\n      <h1 class=\"text-4xl font-bold text-amber-900 mb-2\">The Magic Quill</h1>\n      <p class=\"text-amber-700 mb-6 italic\">\n        Enter a topic or paste text. The AI will write a book for you.\n      </p>\n      <textarea\n        id=\"input-text\"\n        class=\"w-full h-48 p-4 bg-amber-50 border border-amber-200 rounded-md focus:ring-2 focus:ring-amber-500 outline-none mb-4 placeholder-amber-800/30\"\n        placeholder=\"E.g. Kings and Poverty\"></textarea>\n      <button\n        onclick=\"generateBook()\"\n        id=\"gen-btn\"\n        class=\"w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded shadow-md transition-all\">\n        Bind into Book\n      </button>\n    </div>\n  </div>\n\n  <!-- READER SCREEN -->\n  <div id=\"reader-screen\" class=\"hidden w-full h-screen paper-texture flex flex-col fixed top-0 left-0\">\n    <div class=\"h-16 bg-white/90 border-b border-amber-200 flex items-center justify-between px-6 shadow-sm backdrop-blur z-10\">\n      <button onclick=\"resetReader()\" class=\"text-sm text-gray-500 hover:text-amber-600 font-sans flex items-center gap-1\">\n        <span>←</span> New Book\n      </button>\n      <h2 id=\"book-title\" class=\"font-bold text-amber-900 text-lg truncate max-w-md\">Untitled</h2>\n      <div class=\"w-20\"></div>\n    </div>\n    <div class=\"flex-1 overflow-y-auto p-4 md:p-12 max-w-3xl mx-auto w-full\">\n      <div id=\"book-content\" class=\"prose prose-lg prose-amber pb-20\">\n        <!-- Content Injected Here -->\n      </div>\n    </div>\n  </div>\n\n  <script>\n    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n    //  CHANGE THIS AFTER YOU CREATE WORKFLOW B\n    //  Put the Production URL of your AI webhook here:\n    const AI_URL = 'REPLACE_WITH_YOUR_AI_WEBHOOK_URL';\n    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n    async function generateBook() {\n      const text = document.getElementById('input-text').value;\n      const btn = document.getElementById('gen-btn');\n\n      if (!text) {\n        alert(\"Please enter some text or a topic!\");\n        return;\n      }\n\n      btn.innerHTML = \"Writing your book<span class='loading-dots'></span>\";\n      btn.disabled = true;\n\n      try {\n        const response = await fetch(AI_URL, {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify({ rawText: text })\n        });\n\n        const data = await response.json();\n\n        document.getElementById('book-title').innerText =\n          data.bookTitle || 'AI Generated Book';\n\n        let contentHTML = '';\n        if (data.chapters && data.chapters.length > 0) {\n          data.chapters.forEach((chap) => {\n            contentHTML += '<div class=\"mb-12\">';\n            contentHTML += '<h2 class=\"text-3xl font-bold text-amber-900 mb-6 font-serif\">' +\n              (chap.title || '') +\n              '</h2>';\n\n            const paras = (chap.content || '')\n              .split('<br>')\n              .filter((p) => p.trim());\n\n            paras.forEach((p) => {\n              contentHTML += '<p class=\"text-xl leading-8 text-gray-800 mb-4\">' +\n                p +\n                '</p>';\n            });\n\n            contentHTML += '</div>';\n            contentHTML += '<div class=\"flex justify-center my-8\"><span class=\"text-amber-300 text-2xl\">❦</span></div>';\n          });\n        } else {\n          contentHTML =\n            '<p class=\"text-red-500\">The AI returned no chapters. Try again.</p>';\n        }\n\n        document.getElementById('book-content').innerHTML = contentHTML;\n        document.getElementById('generator-screen').classList.add('hidden');\n        document.getElementById('reader-screen').classList.remove('hidden');\n      } catch (e) {\n        console.error(e);\n        alert('Error generating book. Check console.');\n      } finally {\n        btn.innerHTML = 'Bind into Book';\n        btn.disabled = false;\n      }\n    }\n\n    function resetReader() {\n      document.getElementById('reader-screen').classList.add('hidden');\n      document.getElementById('generator-screen').classList.remove('hidden');\n      document.getElementById('input-text').value = '';\n    }\n  </script>\n</body>\n</html>\n`;\n\nreturn { html };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "0c880dc0-04a3-4731-98c2-3f4e34cd35fb",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        400,
+        0
+      ],
+      "id": "e30edac6-8d65-40ec-a53f-a852f17b2eaa",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "book-ui",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        240
+      ],
+      "id": "f37094ee-3598-4fd8-8346-94606f09b20f",
+      "name": "AI Webhook",
+      "webhookId": "REDACTED"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.rawText }}",
+        "options": {
+          "systemMessage": "You are a professional fantasy/historical novelist acting as a strict JSON API.\n\nYour job:\n- Take the user's topic and turn it into a short, narrative mini‑book.\n- The result should feel like a story, not an essay or article.\n\nSTYLE:\n- Story only: scenes, characters, conflict, emotions, sensory detail, and dialogue.\n- Avoid textbook-style explanation and analysis.\n- Show, don’t tell. No meta commentary or “as an AI” talk.\n- Use a consistent third‑person POV unless the topic clearly suggests something else.\n- Use vivid, concrete details (setting, weather, clothes, sounds, smells, physical actions).\n\nLENGTH & STRUCTURE:\n- Total length must comfortably fit within a single fast response.\n- Aim for roughly 800–1,000 words overall.\n- Divide the story into **4 chapters**.\n- Each chapter should be about **250–350 words**.\n- Every chapter must:\n  - Advance the same continuous plot.\n  - Develop characters and raise or resolve tension.\n  - Contain at least some dialogue (with quotation marks).\n  - End with a small hook or emotional beat.\n\nTOPIC & THEMES:\n- The user’s input (rawText) is the main theme or seed (e.g. “kings and poverty”).\n- Build a coherent world, cast, and plot around that theme.\n- Weave the theme through the entire story (not just the beginning).\n\nJSON OUTPUT RULES (CRITICAL):\n1. Output ONLY valid, raw JSON.\n2. Do NOT use markdown code blocks (no backtick fences).\n3. Do NOT write any explanation or text outside the JSON.\n4. Inside each \"content\" string:\n   - Use HTML <br><br> tags between paragraphs.\n   - Do NOT use newline characters (\\n).\n\nREQUIRED JSON STRUCTURE (FOLLOW EXACTLY):\n\n{\n  \"bookTitle\": \"A creative, story-like title based on the topic\",\n  \"chapters\": [\n    {\n      \"title\": \"Chapter 1: [Evocative Chapter Title]\",\n      \"content\": \"Full narrative text of Chapter 1, written like a novel. Multiple paragraphs separated by <br><br>, with vivid description and dialogue.\"\n    },\n    {\n      \"title\": \"Chapter 2: [Evocative Chapter Title]\",\n      \"content\": \"Full narrative text of Chapter 2, continuing the same story...\"\n    },\n    {\n      \"title\": \"Chapter 3: [Evocative Chapter Title]\",\n      \"content\": \"Full narrative text of Chapter 3...\"\n    },\n    {\n      \"title\": \"Chapter 4: [Evocative Chapter Title]\",\n      \"content\": \"Full narrative text of Chapter 4, bringing the main arc to a satisfying conclusion.\"\n    }\n  ]\n}\n\nHARD CONSTRAINTS:\n- There MUST be exactly 4 chapter objects in \"chapters\".\n- Every chapter object MUST have both \"title\" and \"content\".\n- Do not add any extra top-level keys (no prologue/epilogue keys).\n- Make sure the JSON is syntactically valid and can be parsed directly with JSON.parse."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        240
+      ],
+      "id": "e753e490-e793-4409-a078-49bdc8dad95a",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "openrouter/pony-alpha",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        224,
+        400
+      ],
+      "id": "88aa4874-f5a0-4628-b2ab-f0eebefeee2c",
+      "name": "OpenRouter Chat Model"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        560,
+        240
+      ],
+      "id": "cbbff556-3fa0-43a1-ac2d-5e59a4069980",
+      "name": "Respond to Webhook1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "UI Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "f794efa6-d50c-4ae2-8784-309b66db5093",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "REDACTED"
+  },
+  "id": "YF7nSDUBUlCOflp14WzXd",
+  "tags": []
+}
